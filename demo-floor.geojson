@@ -1,0 +1,56 @@
+{
+  "type": "FeatureCollection",
+  "name": "E-Block First Floor (demo)",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "type": "wall", "floor": 1 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [77.33490, 28.54395],
+          [77.33510, 28.54395],
+          [77.33510, 28.54410],
+          [77.33490, 28.54410],
+          [77.33490, 28.54395]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "type": "wall", "floor": 1 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [77.33490, 28.54415],
+          [77.33510, 28.54415],
+          [77.33510, 28.54430],
+          [77.33490, 28.54430],
+          [77.33490, 28.54415]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "type": "hallway", "floor": 1 },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.33500, 28.54395],
+          [77.33500, 28.54430]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "type": "hallway", "floor": 1 },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [77.33485, 28.54412],
+          [77.33515, 28.54412]
+        ]
+      }
+    }
+  ]
+}

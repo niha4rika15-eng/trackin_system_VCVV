@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0a0010" />
+<title>PCNS — Precision Campus Navigation</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<link rel="stylesheet" href="pcns.css" />
+</head>
+<body>
+  <div id="map" data-testid="map-container"></div>
+
+  <!-- Training Mode global banner -->
+  <div id="trainingBanner" class="training-banner" data-testid="training-banner" hidden>
+    <span class="warn-dot"></span>
+    <strong>TRAINING MODE ACTIVE</strong>
+    <span class="muted">— Indoor mapping in progress. Markers are saved in this browser.</span>
+  </div>
+
+  <!-- Floating Search Bar -->
+  <div class="top-bar">
+    <div class="search-wrap">
+      <input id="searchInput" type="text" placeholder="Search destinations…"
+        data-testid="search-input" autocomplete="off" />
+      <button id="adminBtn" class="icon-btn" data-testid="admin-open-btn" title="Admin">⚙</button>
+    </div>
+    <ul id="searchResults" class="search-results" data-testid="search-results"></ul>
+  </div>
+
+  <!-- HUD: steps + heading -->
+  <div class="hud" data-testid="hud">
+    <div class="hud-card">
+      <div class="hud-label">MODE</div>
+      <div class="hud-value" id="hudMode" data-testid="hud-mode">OUTDOOR</div>
+    </div>
+    <div class="hud-card">
+      <div class="hud-label">STEPS</div>
+      <div class="hud-value" id="hudSteps" data-testid="hud-steps">0</div>
+    </div>
+    <div class="hud-card">
+      <div class="hud-label">HEADING</div>
+      <div class="hud-value" id="hudHeading" data-testid="hud-heading">0°</div>
+    </div>
+    <div class="hud-card hud-training" id="hudXY" data-testid="hud-xy" hidden>
+      <div class="hud-label">X / Y (m)</div>
+      <div class="hud-value hud-xy-value">
+        <span id="hudX">+0.00</span> / <span id="hudY">+0.00</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Drop Marker floating button (Training Mode) -->
+  <div class="drop-marker-group">
+    <div class="drop-floor-wrap" id="dropFloorWrap" data-testid="drop-floor-wrap" hidden>
+      <label>Floor</label>
+      <input id="dropFloor" type="number" step="1" value="0" data-testid="drop-floor-input" />
+    </div>
+    <button id="dropMarkerBtn" class="drop-marker-btn" data-testid="drop-marker-btn" hidden>
+      <span class="drop-pin">📍</span> Drop Marker here
+    </button>
+  </div>
+
+  <!-- Floor Switcher (Elevator) -->
+  <div class="floor-switch" id="floorSwitch" data-testid="floor-switch"></div>
+
+  <!-- Arrival notification -->
+  <div id="arrivalToast" class="toast" data-testid="arrival-toast" hidden>
+    <strong>Arrived at Gate</strong>
+    <span>Scan the gate QR code to begin Indoor Navigation.</span>
+  </div>
+
+  <!-- Bottom action buttons -->
+  <div id="scanStatus" class="scan-status" role="status" aria-live="polite" hidden>
+    <div class="scan-status-copy">
+      <strong id="scanStatusTitle">QR status</strong>
+      <span id="scanStatusMessage"></span>
+    </div>
+    <button id="scanStatusClose" type="button" aria-label="Dismiss QR message">×</button>
+  </div>
+
+  <div class="bottom-bar">
+    <button id="resyncBtn" class="btn btn-ghost" data-testid="resync-btn">I am here</button>
+    <button id="startDirectionsBtn" class="btn btn-ghost route-btn" data-testid="start-directions-btn">Start giving direction</button>
+    <button id="qrBtn" class="btn btn-primary btn-qr" data-testid="qr-scan-btn">
+      <span class="qr-pulse"></span>SCAN QR
+    </button>
+    <button id="debugBtn" class="btn btn-ghost" data-testid="debug-open-btn">Debug</button>
+  </div>
+
+  <!-- QR scanner -->
+  <div id="qrModal" class="modal" data-testid="qr-modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>Scan place QR code</h2>
+        <button id="qrCloseBtn" class="icon-btn" type="button" aria-label="Close QR scanner">✕</button>
+      </div>
+      <p id="qrScannerStatus" class="muted small" role="status">Allow camera access and point it at a PCNS place QR code.</p>
+      <div id="qrReader" class="qr-reader"></div>
+    </div>
+  </div>
+
+  <!-- Admin Modal -->
+  <div id="adminModal" class="modal" data-testid="admin-modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>Admin — Landmarks</h2>
+        <button class="icon-btn" data-close="adminModal" data-testid="admin-close-btn">✕</button>
+      </div>
+
+      <div id="adminLogin" class="stack">
+        <label>Admin password</label>
+        <input id="adminPass" type="password" data-testid="admin-password-input" placeholder="••••••••" />
+        <button id="adminLoginBtn" class="btn btn-primary" data-testid="admin-login-btn">Unlock</button>
+        <p id="adminLoginErr" class="err" hidden>Incorrect password.</p>
+      </div>
+
+      <div id="adminPanel" class="stack" hidden>
+        <div class="stack">
+          <label>Landmark name</label>
+          <input id="lmName" type="text" data-testid="landmark-name-input" placeholder="E-Block Gate" />
+
+          <label>Google Maps link <span class="muted">or</span> "lat, lng"</label>
+          <input id="lmPaste" type="text" data-testid="landmark-paste-input"
+            placeholder="https://maps.google.com/?q=28.5440,77.3350  or  28.5440, 77.3350" />
+
+          <div class="row">
+            <div class="stack grow">
+              <label>Latitude</label>
+              <input id="lmLat" type="number" step="any" data-testid="landmark-lat-input" />
+            </div>
+            <div class="stack grow">
+              <label>Longitude</label>
+              <input id="lmLng" type="number" step="any" data-testid="landmark-lng-input" />
+            </div>
+          </div>
+          <label>Floor <span class="muted">(optional; 0 = Ground)</span></label>
+          <input id="lmFloor" type="number" step="1" data-testid="landmark-floor-input" />
+
+          <label>Use a saved place QR code</label>
+          <button id="lmScanQrBtn" class="btn btn-ghost" type="button" data-testid="landmark-scan-qr-btn">Scan QR to fill place details</button>
+          <p id="lmQrStatus" class="muted small" role="status" hidden></p>
+
+          <button id="lmAddBtn" class="btn btn-primary" data-testid="landmark-add-btn">Add landmark</button>
+          <p id="lmErr" class="err" hidden></p>
+        </div>
+
+        <hr />
+        <div class="row" style="align-items:center;justify-content:space-between">
+          <label style="margin:0">Training Mode (Indoor Mapping)</label>
+          <label class="switch">
+            <input id="trainingToggle" type="checkbox" data-testid="training-toggle" />
+            <span class="slider-ui"></span>
+          </label>
+        </div>
+        <p class="muted small">Drop named markers at your current indoor X/Y position. Requires INDOOR mode. Markers are stored in this browser unless you export them.</p>
+
+        <div class="row" style="align-items:center;justify-content:space-between">
+          <label style="margin:0">Floor Heatmap (vertical alignment)</label>
+          <label class="switch">
+            <input id="heatmapToggle" type="checkbox" data-testid="heatmap-toggle" />
+            <span class="slider-ui"></span>
+          </label>
+        </div>
+        <p class="muted small">Dim other floors to 20% instead of hiding them — useful for stairwell/anchor alignment.</p>
+
+        <hr />
+        <h3>Personalized PDR model</h3>
+        <p class="muted small">Supervised linear regression learns your step length from measured walks. Walk a known distance, use the detected step count, and record at least two samples. This calibrates distance per step; it does not independently learn the entire building layout.</p>
+        <section id="calibrationWizard" class="calibration-wizard" aria-labelledby="calibrationWizardTitle">
+          <h4 id="calibrationWizardTitle">Guided step-length calibration</h4>
+          <p class="muted small">Anchor indoors, record a walk at your normal pace, then enter its measured distance.</p>
+          <div class="calibration-progress-bar" role="status" aria-live="polite">
+            <div class="calibration-progress-copy">
+              <span id="calibrationProgressText">Sample 0 of 2</span>
+              <strong id="calibrationProgressSuccess" class="calibration-progress-success" hidden>✓ Calibration samples ready</strong>
+            </div>
+            <div class="calibration-progress-track" aria-hidden="true">
+              <span id="calibrationProgressFill"></span>
+            </div>
+          </div>
+          <div id="calibrationRecordingBadge" class="recording-badge" role="status" aria-live="assertive" hidden>🔴 Recording Steps...</div>
+          <p class="wizard-step-count small">Detected steps: <strong id="calibrationWizardSteps" aria-live="polite">0</strong></p>
+          <div id="calibrationDistancePanel" class="calibration-distance-panel" hidden>
+            <label for="calibrationWizardDistance">Measured Distance (meters)</label>
+            <input id="calibrationWizardDistance" type="number" min="0.1" max="5000" step="0.1" inputmode="decimal" placeholder="e.g. 30" />
+          </div>
+          <div class="row calibration-wizard-actions">
+            <button id="startCalibrationWizardBtn" class="btn btn-primary grow" type="button">Start Calibration Walk</button>
+            <button id="finishCalibrationWizardBtn" class="btn btn-primary grow" type="button" hidden>Stop &amp; Save Walk</button>
+            <button id="saveCalibrationWalkBtn" class="btn btn-primary grow" type="button" hidden>Save Sample</button>
+            <button id="discardCalibrationWalkBtn" class="btn btn-ghost grow" type="button" hidden>Discard Walk</button>
+          </div>
+          <p id="calibrationWizardStatus" class="wizard-status muted small" role="status" aria-live="polite">Ready when you are anchored in indoor mode.</p>
+        </section>
+        <div class="row">
+          <button id="trainCalibrationBtn" class="btn btn-primary grow" type="button" disabled>Train Model</button>
+        </div>
+        <p id="calibrationStatus" class="model-status muted small" role="status" aria-live="polite">Using default step length until the model is trained.</p>
+        <div class="row">
+          <button id="resetCalibrationBtn" class="btn btn-ghost grow" type="button">Reset model</button>
+          <button id="exportCsvBtn" class="btn btn-ghost grow" data-testid="export-csv-btn">Export markers CSV</button>
+        </div>
+
+        <hr />
+        <h3>Map data portability</h3>
+        <p class="muted small">Landmarks and training samples live in this browser's local storage. Export a JSON backup and import it on each phone used for navigation/training. No cloud database is configured in this static GitHub Pages build.</p>
+        <div class="row">
+          <button id="exportDataBtn" class="btn btn-ghost grow" type="button">Export JSON backup</button>
+          <button id="importDataBtn" class="btn btn-ghost grow" type="button">Import JSON backup</button>
+          <input id="importDataFile" type="file" accept="application/json,.json" hidden />
+        </div>
+        <p id="dataStatus" class="muted small" role="status" aria-live="polite" hidden></p>
+
+        <hr />
+        <h3>Change admin password</h3>
+        <div class="stack">
+          <input id="newPass" type="password" placeholder="New password (min 4 chars)" data-testid="new-pass-input" />
+          <input id="newPass2" type="password" placeholder="Confirm new password" data-testid="new-pass-confirm-input" />
+          <button id="changePassBtn" class="btn btn-ghost" data-testid="change-pass-btn">Update password</button>
+          <p id="passStatus" class="muted small" hidden></p>
+        </div>
+
+        <hr />
+        <h3>Saved landmarks</h3>
+        <p class="muted small">Saved landmarks can create a QR destination link containing the place name and coordinates. Export a JSON backup to move saved landmarks to another browser or phone.</p>
+        <ul id="lmList" class="lm-list" data-testid="landmark-list"></ul>
+
+        <button id="adminLogoutBtn" class="btn btn-ghost" data-testid="admin-logout-btn">Lock</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Debug Modal -->
+  <div id="debugModal" class="modal" data-testid="debug-modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>Debug / Simulation</h2>
+        <button class="icon-btn" data-close="debugModal" data-testid="debug-close-btn">✕</button>
+      </div>
+      <div class="stack">
+        <button id="simQrBtn" class="btn btn-primary" data-testid="sim-qr-btn">
+          Simulate QR Scan (E1 Main Gate)
+        </button>
+
+        <div class="row">
+          <button id="simStepBtn" class="btn btn-ghost" data-testid="sim-step-btn">+1 Step</button>
+          <button id="simStep10Btn" class="btn btn-ghost" data-testid="sim-step10-btn">+10 Steps</button>
+        </div>
+
+        <label>Heading (°)</label>
+        <input id="simHeading" type="range" min="0" max="359" value="0" data-testid="sim-heading-slider" />
+        <div class="row">
+          <button id="simTurnLBtn" class="btn btn-ghost" data-testid="sim-turn-left-btn">⟲ -15°</button>
+          <button id="simTurnRBtn" class="btn btn-ghost" data-testid="sim-turn-right-btn">+15° ⟳</button>
+        </div>
+
+        <label>Simulate outdoor GPS near gate</label>
+        <button id="simGpsBtn" class="btn btn-ghost" data-testid="sim-gps-btn">Jump GPS near selected landmark</button>
+
+        <button id="simResetBtn" class="btn btn-ghost" data-testid="sim-reset-btn">Reset to Outdoor Mode</button>
+
+        <p class="muted small">
+          Desktop testing: camera and location require permission; camera access also needs HTTPS or localhost. Use simulations here.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="pcns-ml.js"></script>
+  <script src="pcns-qr.js"></script>
+  <script src="pcns-nfc.js"></script>
+  <script src="pcns.js"></script>
+</body>
+</html>
